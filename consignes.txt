@@ -1,5 +1,3 @@
-
-
 Projet SUDOKU
 Solveur de Sudoku parallélisé sur le CPU
 Objectif
