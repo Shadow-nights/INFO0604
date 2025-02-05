@@ -4,14 +4,12 @@
 #include <string.h>
 #include <time.h>
 
-
-
-//Version sequentielle
-// N is the size of the 2D matrix   N*N
+//Version séquentielle
+// N est la taille de la matrice N*N
 #define N 9
-#define NUM_GRIDS 10000  // Réduit à 50000 grilles
+#define NUM_GRIDS 10000 // Nombre de grilles à résoudre
 
-/* A utility function to print grid */
+/* Fonction utilitaire pour afficher la grille */
 void print(int arr[N][N])
 {
     for (int i = 0; i < N; i++) {
@@ -22,27 +20,26 @@ void print(int arr[N][N])
     printf("\n");
 }
 
-// Checks whether it will be legal  
-// to assign num to the
-// given row, col
+// Vérifie s'il est légal de placer le nombre num
+// à la position donnée (row, col)
 int isSafe(int grid[N][N], int row, 
                        int col, int num)
 {
     
-    // Check if we find the same num 
-    // in the similar row , we return 0
+    // Vérifie si on trouve le même nombre
+    // dans la même ligne, retourne 0 si trouvé
     for (int x = 0; x <= 8; x++)
         if (grid[row][x] == num)
             return 0;
 
-    // Check if we find the same num in the 
-    // similar column , we return 0
+    // Vérifie si on trouve le même nombre
+    // dans la même colonne, retourne 0 si trouvé
     for (int x = 0; x <= 8; x++)
         if (grid[x][col] == num)
             return 0;
 
-    // Check if we find the same num in the 
-    // particular 3*3 matrix, we return 0
+    // Vérifie si on trouve le même nombre
+    // dans le carré 3x3 correspondant
     int startRow = row - row % 3, 
                  startCol = col - col % 3;
   
@@ -55,63 +52,53 @@ int isSafe(int grid[N][N], int row,
     return 1;
 }
 
-/* Takes a partially filled-in grid and attempts
-to assign values to all unassigned locations in
-such a way to meet the requirements for
-Sudoku solution (non-duplication across rows,
-columns, and boxes) */
+/* Prend une grille partiellement remplie et tente
+d'attribuer des valeurs à tous les emplacements non assignés
+de manière à respecter les règles du Sudoku
+(pas de doublons dans les lignes, colonnes et carrés) */
 int solveSudoku(int grid[N][N], int row, int col)
 {
-    // Check if we have reached the 8th row 
-    // and 9th column (0
-    // indexed matrix) , we are 
-    // returning true to avoid
-    // further backtracking
+    // Vérifie si on a atteint la 8ème ligne
+    // et la 9ème colonne (matrice indexée à 0)
+    // on retourne vrai pour éviter plus de backtracking
     if (row == N - 1 && col == N)
         return 1;
 
-    //  Check if column value  becomes 9 ,
-    //  we move to next row and
-    //  column start from 0
+    // Si la valeur de colonne devient 9,
+    // on passe à la ligne suivante et
+    // on repart de la colonne 0
     if (col == N) 
     {
         row++;
         col = 0;
     }
   
-    // Check if the current position 
-    // of the grid already contains
-    // value >0, we iterate for next column
+    // Si la position actuelle de la grille
+    // contient déjà une valeur > 0,
+    // on passe à la colonne suivante
     if (grid[row][col] > 0)
         return solveSudoku(grid, row, col + 1);
 
     for (int num = 1; num <= N; num++) 
     {
-        
-        // Check if it is safe to place 
-        // the num (1-9)  in the
-        // given row ,col  ->we move to next column
+        // Vérifie s'il est sûr de placer
+        // le nombre (1-9) dans la position donnée
         if (isSafe(grid, row, col, num)==1) 
         {
-            /* assigning the num in the 
-               current (row,col)
-               position of the grid
-               and assuming our assigned num 
-               in the position
-               is correct     */
+            /* Assigne le nombre à la position
+               actuelle (row,col) de la grille
+               en supposant que ce choix est correct */
             grid[row][col] = num;
           
-            //  Checking for next possibility with next
-            //  column
+            // Vérifie la possibilité suivante avec
+            // la colonne suivante
             if (solveSudoku(grid, row, col + 1)==1)
                 return 1;
         }
       
-        // Removing the assigned num ,
-        // since our assumption
-        // was wrong , and we go for next 
-        // assumption with
-        // diff num value
+        // Si l'hypothèse était fausse,
+        // on retire le nombre et on essaie
+        // une autre valeur
         grid[row][col] = 0;
     }
     return 0;
@@ -171,13 +158,21 @@ int main()
     
     int solved = 0;
     for(int g = 0; g < NUM_GRIDS; g++) {
+        /*printf("\nGrille %d avant résolution :\n", g+1);
+        print(grids[g]);*/
+        
         if (solveSudoku(grids[g], 0, 0) == 1) {
+            /*printf("Grille %d après résolution :\n", g+1);
+            print(grids[g]);*/
             solved++;
+        } else {
+            /*printf("Grille %d impossible à résoudre\n", g+1);*/
         }
+        //printf("----------------------------------------\n");
     }
         
     end = omp_get_wtime();  // Fin du chronométrage
-    printf("Nombre de grilles résolues : %d/%d\n", solved, NUM_GRIDS);
+    printf("\nNombre de grilles résolues : %d/%d\n", solved, NUM_GRIDS);
     printf("Temps d'execution sequentiel : %.4f secondes\n", end - start);
 
     free(grids);  // Libération de la mémoire
