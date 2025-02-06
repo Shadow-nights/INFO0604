@@ -7,7 +7,7 @@
 //Version séquentielle
 // N est la taille de la matrice N*N
 #define N 9
-#define NUM_GRIDS 10000 // Nombre de grilles à résoudre
+#define NUM_GRIDS 100 // Nombre de grilles à résoudre
 
 /* Fonction utilitaire pour afficher la grille */
 void print(int arr[N][N])

@@ -5,9 +5,20 @@
 #include <time.h>
 
 #define N 9
-#define NUM_GRIDS 10000
 #define SEQUENTIAL_RUN 0
 #define PARALLEL_RUN 1
+
+unsigned int thread_safe_rand(unsigned int* seed);
+int hasMinimumClues(int grid[N][N]);
+int isValidGrid(int grid[N][N]);
+int isSafe(int grid[N][N], int row, int col, int num);
+int solveSudoku(int grid[N][N], int row, int col);
+
+// Implémentation du générateur de nombres aléatoires thread-safe
+unsigned int thread_safe_rand(unsigned int* seed) {
+    *seed = (*seed * 1103515245 + 12345) & 0x7fffffff;
+    return *seed;
+}
 
 void print(int arr[N][N]) {
     for (int i = 0; i < N; i++) {
@@ -61,7 +72,6 @@ int solveSudoku(int grid[N][N], int row, int col) {
     return 0;
 }
 
-// Fonction parallélisée pour explorer les premières possibilités
 int parallel_solve(int grid[N][N]) {
     if (!hasMinimumClues(grid)) return 0;  // Vérification rapide
     
@@ -76,7 +86,6 @@ int parallel_solve(int grid[N][N]) {
     int possible_nums[N];
     int num_count = 0;
 
-    // Pré-calcul des nombres possibles pour réduire la charge de travail
     for (int num = 1; num <= N; num++) {
         if (isSafe(grid, row, col, num)) {
             possible_nums[num_count++] = num;
@@ -109,7 +118,6 @@ int parallel_solve(int grid[N][N]) {
     return found;
 }
 
-// Fonction pour copier une grille source vers une grille destination
 void copyGrid(int src[N][N], int dest[N][N]) {
     for(int i = 0; i < N; i++) {
         for(int j = 0; j < N; j++) {
@@ -142,10 +150,9 @@ int hasMinimumClues(int grid[N][N]) {
             if (grid[i][j] != 0) count++;
         }
     }
-    return count >= 17; // Une grille de Sudoku nécessite au moins 17 indices pour avoir une solution unique
+    return count >= 17;
 }
 
-// Modification de la fonction solve_grids
 double solve_grids(int (*grids)[N][N], int num_grids, int mode) {
     int solved = 0;
     double min_time = 999999.0;
@@ -198,17 +205,15 @@ double solve_grids(int (*grids)[N][N], int num_grids, int mode) {
     return total_time;
 }
 
-int main() {
-    double start, end;
-    
-    // Initialisation du générateur de nombres aléatoires
-    srand(time(NULL));
-
-    // Au début du main, après les déclarations
+int main(int argv, char** argc) {
+    if (argv < 2) {
+        printf("Usage: %s <nombre de grilles>\n", argc[0]);
+        return 1;
+    }
+    int NUM_GRIDS = atoi(argc[1]);
     int num_threads = omp_get_max_threads();
     omp_set_num_threads(num_threads);
 
-    // Dans le main, juste après la définition de num_threads :
     if (num_threads < 2) {
         printf("⚠️ Attention : Exécution avec seulement %d thread(s). Les performances peuvent être limitées.\n", num_threads);
     } else {
@@ -229,35 +234,49 @@ int main() {
         {0, 0, 5, 2, 0, 6, 3, 0, 0}
     };
 
-    // Allocation dynamique du tableau de grilles
     int (*grids)[N][N] = malloc(NUM_GRIDS * sizeof(int[N][N]));
     if (grids == NULL) {
         printf("Erreur d'allocation mémoire\n");
         return 1;
     }
 
-    // Création de variations de la grille de base
-    #pragma omp parallel for schedule(dynamic)
-    for(int g = 0; g < NUM_GRIDS; g++) {
-        int attempts = 0;
-        do {
-            copyGrid(baseGrid, grids[g]);
-            #pragma omp critical
-            {
-                for(int i = 0; i < N; i++) {
-                    for(int j = 0; j < N; j++) {
-                        if (rand() % 7 != 0) {
-                            grids[g][i][j] = 0;
+    // Création de variations de la grille de base avec génération thread-safe
+    #pragma omp parallel
+    {
+        unsigned int seed = time(NULL) ^ omp_get_thread_num(); // Seed unique par thread
+        
+        #pragma omp for schedule(dynamic)
+        for(int g = 0; g < NUM_GRIDS; g++) {
+            int attempts = 0;
+            do {
+                copyGrid(baseGrid, grids[g]);
+                
+                // Utilisation de notre générateur thread-safe
+                if (thread_safe_rand(&seed) % 10 == 0) {  // Probabilité de 1/10
+                    // Pour makeGridUnsolvable, on utilise aussi notre générateur thread-safe
+                    int row = thread_safe_rand(&seed) % N;
+                    int col1 = thread_safe_rand(&seed) % (N-1);
+                    int col2 = col1 + 1;
+                    grids[g][row][col1] = 1;
+                    grids[g][row][col2] = 1;
+                } else {
+                    int empty_count = 0;
+                    for(int i = 0; i < N; i++) {
+                        for(int j = 0; j < N; j++) {
+                            if (thread_safe_rand(&seed) % 100 < 65 && empty_count < 60) {
+                                grids[g][i][j] = 0;
+                                empty_count++;
+                            }
                         }
                     }
                 }
-            }
-            attempts++;
-            if (attempts > 100) {  // Éviter une boucle infinie
-                copyGrid(baseGrid, grids[g]);
-                break;
-            }
-        } while (!isValidGrid(grids[g]) || !hasMinimumClues(grids[g]));
+                attempts++;
+                if (attempts > 100) {
+                    copyGrid(baseGrid, grids[g]);
+                    break;
+                }
+            } while (!hasMinimumClues(grids[g]));
+        }
     }
 
     // Copier les grilles pour avoir deux jeux identiques
@@ -277,7 +296,7 @@ int main() {
     printf("Speedup: %.2fx\n", speedup);
     printf("Efficacité: %.2f%%\n", (speedup / num_threads) * 100);
 
-    // À la fin du main, avant les free :
+    // Résumé des performances
     printf("\n=== Résumé des performances ===\n");
     printf("Nombre de grilles traitées : %d\n", NUM_GRIDS);
     printf("Nombre de threads utilisés : %d\n", num_threads);
@@ -288,7 +307,6 @@ int main() {
     printf("Gain en performance      : %.1f%%\n", ((time_seq - time_par) / time_seq) * 100);
     printf("=============================\n");
 
-    // Libérer la mémoire
     free(grids_seq);
     free(grids);
     return 0;
